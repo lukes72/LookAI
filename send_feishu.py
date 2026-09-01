@@ -2,7 +2,7 @@
 """飞书论文日报发送脚本（机器人模式）。
 
 从 papers_record.xlsx 读取指定日期抓取的论文，生成飞书 Markdown 日报，
-并通过 lark-cli 以 user 身份发送到指定用户。
+并通过 lark-cli 以 bot 身份发送到指定用户。
 
 用法:
   python send_feishu.py                 # 发送今天的论文日报
@@ -128,7 +128,7 @@ def send_via_lark_cli(markdown: str, user_id: str, dry_run: bool = False) -> boo
         cmd = [
             "cmd", "/c", "lark-cli",
             "im", "+messages-send",
-            "--as", "user",
+            "--as", "bot",
             "--user-id", user_id,
             "--markdown", markdown,
         ]
@@ -138,7 +138,7 @@ def send_via_lark_cli(markdown: str, user_id: str, dry_run: bool = False) -> boo
             "im",
             "+messages-send",
             "--as",
-            "user",
+            "bot",
             "--user-id",
             user_id,
             "--markdown",
