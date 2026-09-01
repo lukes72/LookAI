@@ -11,10 +11,6 @@ cat:cs.AI+AND+all:reasoning
 cat:cs.AI+AND+all:multimodal
 # 检索增强生成
 cat:cs.CL+AND+all:retrieval+AND+all:augmented+AND+all:generation
-# 扩散生成模型
-cat:cs.AI+AND+all:diffusion
-# 模型对齐与安全
-cat:cs.AI+AND+all:alignment
 # 量化与高效推理
 cat:cs.AI+AND+all:quantization
 # 代码大模型
