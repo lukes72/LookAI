@@ -5,6 +5,10 @@
 - 本地模式：默认模式。每天自动检索并处理论文，推送到你自己的飞书，并通过 `python3 viewer/run_viewer.py` 在本机启动网页阅读页
 - GitHub Pages 模式：增强模式，包含本地模式的全部功能，并额外把静态网站自动发布到你自己 fork 的 GitHub Pages
 
+## 🤖 机器人模式（每天 9:00 自动推送，无需 Hermes）
+
+如果你想把它当成“每天早 9 点自动抓论文、写中文总结、推送飞书”的机器人，而不想安装 Hermes，请直接看 [AUTOMATION.md](AUTOMATION.md)。其中包含每日流程、飞书配置，以及 Codex 定时任务 / Windows 任务计划 / GitHub Actions 三种自动化方式。
+
 ## 安装目录
 
 - [本地模式安装](#本地模式)

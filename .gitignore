@@ -15,3 +15,6 @@ cronjob_prompt.generated.txt
 crawled_ids.txt
 
 .gitignore
+
+feishu_config.json
+llm_fill.json
