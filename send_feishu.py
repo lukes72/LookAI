@@ -113,17 +113,6 @@ def build_markdown(papers: list[dict], target_date: str) -> str:
 
 
 def send_via_lark_cli(markdown: str, user_id: str, dry_run: bool = False) -> bool:
-    cmd = [
-        "lark-cli",
-        "im",
-        "+messages-send",
-        "--as",
-        "user",
-        "--user-id",
-        user_id,
-        "--markdown",
-        markdown,
-    ]
     if dry_run:
         print("[DRY-RUN] 将执行 lark-cli im +messages-send ...")
         print(f"[DRY-RUN] user_id={user_id}, markdown 长度={len(markdown)}")
@@ -133,6 +122,29 @@ def send_via_lark_cli(markdown: str, user_id: str, dry_run: bool = False) -> boo
         return True
 
     print(f"[INFO] 正在通过 lark-cli 发送 {len(markdown)} 字符的日报...")
+    if sys.platform == "win32":
+        # Windows 下 lark-cli 是 npm 全局脚本(.ps1/.cmd)，直接 subprocess 找不到可执行文件，
+        # 且 .ps1 受 ExecutionPolicy 限制；用 cmd /c 走 npm 的 .cmd shim 最稳。
+        cmd = [
+            "cmd", "/c", "lark-cli",
+            "im", "+messages-send",
+            "--as", "user",
+            "--user-id", user_id,
+            "--markdown", markdown,
+        ]
+    else:
+        cmd = [
+            "lark-cli",
+            "im",
+            "+messages-send",
+            "--as",
+            "user",
+            "--user-id",
+            user_id,
+            "--markdown",
+            markdown,
+        ]
+
     result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
     if result.returncode != 0:
         print(f"[ERROR] lark-cli 发送失败: {result.stderr or result.stdout}")
@@ -141,7 +153,6 @@ def send_via_lark_cli(markdown: str, user_id: str, dry_run: bool = False) -> boo
     if result.stdout:
         print(result.stdout.strip()[:2000])
     return True
-
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="发送飞书论文日报")
