@@ -41,9 +41,8 @@ SOURCE_NAMES = {
     "theverge.com": "The Verge",
     "venturebeat.com": "VentureBeat",
     "technologyreview.com": "MIT Tech Review",
-    "qbitai.com": "量子位",
-    "leiphone.com": "雷锋网",
-    "jiqizhixin.com": "机器之心",
+    "hub.baai.ac.cn": "智源社区",
+    "aiera.com.cn": "新智元",
 }
 
 

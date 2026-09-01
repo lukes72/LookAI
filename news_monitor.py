@@ -178,6 +178,61 @@ def parse_feed(xml_text: str, source: str, hours: int, seen: set) -> list[dict]:
     return items
 
 
+def parse_hub_time(created: str) -> datetime | None:
+    """解析智源社区 "YYYY-MM-DD HH:MM 分享" 格式时间（北京时间）。"""
+    m = re.match(r"(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})", (created or "").strip())
+    if not m:
+        return None
+    try:
+        dt = datetime.strptime(f"{m.group(1)} {m.group(2)}", "%Y-%m-%d %H:%M")
+        return dt.replace(tzinfo=timezone(timedelta(hours=8)))
+    except ValueError:
+        return None
+
+
+def fetch_hub_baai(hours: int, seen: set) -> list[dict]:
+    """从智源社区（hub.baai.ac.cn）JSON API 抓取最新 AI 科技动态。"""
+    api_url = "https://hub-api.baai.ac.cn/api/v1/story/list"
+    headers = dict(HEADERS)
+    headers["Content-Type"] = "application/json"
+    headers["Accept"] = "application/json"
+    payload = {"sort": "new", "page": 1}
+    resp = requests.post(api_url, headers=headers, json=payload, timeout=REQUEST_TIMEOUT)
+    resp.raise_for_status()
+    data = resp.json()
+    if data.get("code") != 0 or not isinstance(data.get("data"), list):
+        return []
+
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+    items: list[dict] = []
+    source_url = "https://hub.baai.ac.cn/"
+    for row in data["data"]:
+        if len(items) >= MAX_ITEMS_PER_SOURCE:
+            break
+        info = row.get("story_info") or {}
+        title = clean_text(info.get("title") or "")
+        if not title:
+            continue
+        link = (info.get("url") or "").strip() or source_url
+        summary = clean_text(info.get("summary") or info.get("content") or "")
+        pub = parse_hub_time(info.get("created_at") or "")
+        if pub is not None and pub < cutoff:
+            continue
+        iid = item_id(title)
+        if iid in seen:
+            continue
+        items.append({
+            "id": iid,
+            "title": title,
+            "source": source_url,
+            "url": link,
+            "published": pub.isoformat() if pub else "",
+            "summary_short": summary[:500],
+            "summary_cn": "",
+        })
+    return items
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="AI 科技新闻采集")
     parser.add_argument("--hours", type=int, default=int(os.environ.get("NEWS_HOURS", "24")))
@@ -194,6 +249,15 @@ def main() -> None:
     errors: list[str] = []
     for url in sources:
         try:
+            if url.startswith("json:"):
+                target = url[len("json:"):].strip()
+                items = fetch_hub_baai(args.hours, seen)
+                if items:
+                    print(f"[OK] {target} -> {len(items)} 条")
+                    all_items.extend(items)
+                else:
+                    print(f"[SKIP] {target} -> 0 条")
+                continue
             resp = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
             resp.raise_for_status()
             items = parse_feed(resp.text, url, args.hours, seen)
