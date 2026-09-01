@@ -1,0 +1,20 @@
+# AI 科技新闻 RSS 源（每行一个；# 开头为注释，空行忽略）。
+# 聚焦：大公司官方博客 + 主流科技媒体，覆盖新模型 / 新技术 / 大公司动态。
+
+# --- 公司官方博客 ---
+https://openai.com/news/rss.xml
+https://huggingface.co/blog/feed.xml
+https://blog.google/technology/ai/rss/
+https://deepmind.google/blog/rss.xml
+
+# --- 英文科技媒体 ---
+https://techcrunch.com/category/artificial-intelligence/feed/
+https://www.theverge.com/rss/ai-artificial-intelligence/index.xml
+https://venturebeat.com/category/ai/feed/
+https://www.technologyreview.com/topic/artificial-intelligence/feed
+
+# --- 中文科技媒体 ---
+https://www.qbitai.com/feed
+https://www.leiphone.com/feed
+
+# 说明：Anthropic、Meta AI 官网暂未提供可用 RSS，相关动态会由上述媒体覆盖。

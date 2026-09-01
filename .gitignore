@@ -18,3 +18,6 @@ crawled_ids.txt
 
 feishu_config.json
 llm_fill.json
+
+news_items.json
+news_seen.txt
