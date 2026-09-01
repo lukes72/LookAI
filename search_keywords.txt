@@ -1,0 +1,18 @@
+# arXiv 论文监控关键词（每个查询单独一行；# 开头为注释，空行忽略）。
+# 只保留偏理论 / 计算机 AI 的方向；临床医疗、审计、生物医学、农业、金融等应用方向
+# 已在 monitor.py 中通过领域黑名单统一过滤，无需在查询里写排除条件。
+
+# 强化学习算法
+cat:cs.LG+AND+abs:reinforcement+AND+abs:algorithm
+# 量化与模型压缩
+cat:cs.LG+AND+abs:quantization
+# 大语言模型
+cat:cs.CL+AND+abs:large+AND+abs:language+AND+abs:model
+# 推理 / 思维链
+cat:cs.CL+AND+abs:reasoning
+# LLM 智能体
+cat:cs.AI+AND+abs:language+AND+abs:agent
+# 检索增强生成
+cat:cs.CL+AND+abs:retrieval+AND+abs:augmented+AND+abs:generation
+# 代码大模型
+cat:cs.CL+AND+abs:code+AND+abs:language+AND+abs:model
