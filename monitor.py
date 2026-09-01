@@ -8,6 +8,7 @@ arxiv AI 论文自动监控主脚本
 import os
 import sys
 import json
+import re
 import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, date
@@ -32,6 +33,33 @@ ARXIV_API = "https://export.arxiv.org/api/query"
 MAX_RESULTS = int(os.environ.get("ARXIV_MAX_RESULTS", "30"))
 MAX_TOTAL_RESULTS = int(os.environ.get("ARXIV_MAX_TOTAL", "30"))
 REQUEST_INTERVAL = 3  # 秒
+
+# 领域黑名单：过滤明显偏离“理论 / 计算机 AI”方向的应用类论文（临床医疗、审计、生物医学、农业、金融等）。
+_DOMAIN_BLOCKLIST = [
+    "clinical", "medical", "biomedical", "healthcare", "patient", "patients",
+    "diabetes", "cancer", "tumor", "tumours", "disease", "diseases",
+    "drug", "drugs", "therapy", "therapies", "diagnosis", "physician", "hospital",
+    "biology", "biological", "protein", "proteins", "genome", "genomes",
+    "genomic", "genomics", "gene", "genes", "cell", "cells",
+    "molecular", "molecule", "molecules",
+    "agriculture", "agricultural", "crop", "crops", "livestock",
+    "grapevine", "vineyard", "viticulture", "horticulture",
+    "finance", "financial", "accounting", "audit", "auditing",
+    "electrocardiography", "electrocardiogram", "ecg", "neuroscience",
+    "mental health",
+]
+_DOMAIN_PATTERN = re.compile(
+    r"\b(?:" + "|".join(_DOMAIN_BLOCKLIST) + r")\b", re.IGNORECASE
+)
+
+
+def is_relevant(paper: dict) -> bool:
+    """判断论文是否属于目标方向（标题/摘要/分类命中领域黑名单则过滤）。"""
+    text = " ".join(
+        str(paper.get(k, "") or "") for k in ("title", "summary", "categories")
+    )
+    return _DOMAIN_PATTERN.search(text) is None
+
 
 # ==================== 工具函数 ====================
 
@@ -162,17 +190,17 @@ def _search_arxiv_single(query: str, max_results: int = MAX_RESULTS) -> list[dic
 
 
 def search_arxiv_papers(queries: list[str], max_results: int = MAX_RESULTS) -> list[dict]:
-    """按多个查询分别搜索，合并去重（按 arxiv_id），再按发布日期倒序返回。"""
+    """按多个查询分别搜索，合并去重（按 arxiv_id），过滤领域黑名单，再按发布日期倒序返回。"""
     merged: dict[str, dict] = {}
     for query in queries:
         for paper in _search_arxiv_single(query, max_results):
             merged.setdefault(paper["arxiv_id"], paper)
         time.sleep(REQUEST_INTERVAL)
-    papers = sorted(
-        merged.values(),
-        key=lambda p: (p["published_date"], p["arxiv_id"]),
-        reverse=True,
-    )
+    papers = [p for p in merged.values() if is_relevant(p)]
+    filtered = len(merged) - len(papers)
+    if filtered:
+        print(f"[FILTER] 已过滤 {filtered} 篇应用类论文（临床/医疗/生物/农业/金融/审计等）")
+    papers.sort(key=lambda p: (p["published_date"], p["arxiv_id"]), reverse=True)
     return papers
 
 def download_pdf(paper: dict) -> bool:
