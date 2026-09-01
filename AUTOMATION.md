@@ -1,8 +1,8 @@
 # 🤖 机器人模式：每天 9:00 自动推送飞书（论文 + AI 新闻）
 
-本目录实现了两套不依赖 Hermes 的机器人日报：**arXiv 论文日报** 和 **AI 新闻日报**。每天 9:00 的 Codex 定时任务会依次执行两条流水线，最后都推送到飞书。
+lookAI 实现两套独立的机器人日报：**arXiv 论文日报** 和 **AI 新闻日报**。每天 9:00 的定时任务会依次执行两条流水线，最后都推送到飞书。
 
-## 每日流程（机器人执行的动作）
+## 每日流程
 
 ### A. arXiv 论文日报
 
@@ -35,7 +35,7 @@ pip install openpyxl requests pymupdf
 
 ### 2. 配置飞书
 
-`send_feishu.py`（论文日报）使用 lark-cli user 身份；`send_news_feishu.py`（新闻日报）使用应用机器人身份。应用机器人的凭据写在 `feishu_config.json`：
+`send_feishu.py`（论文日报）与 `send_news_feishu.py`（新闻日报）都使用飞书应用机器人身份，凭据写在 `feishu_config.json`：
 
 ```json
 {
@@ -47,29 +47,23 @@ pip install openpyxl requests pymupdf
 
 `feishu_config.json` 已被 `.gitignore` 忽略，不会提交到公开仓库。
 
-### 3. 登录飞书（论文日报用 user 身份）
-
-```bash
-lark-cli auth login
-```
-
-登录时选择 **user 身份**，授予 `offline_access`、`im:message`、`im:message.send_as_user` 等 scope。
+> 也可以不写文件，直接使用环境变量 `FEISHU_APP_ID` / `FEISHU_APP_SECRET` / `FEISHU_USER_ID`。
 
 ## 自动化方式
 
 ### 方式 A：Codex 定时任务（推荐）
 
-在 Codex 桌面端创建一条每天 9:00（本地时区）触发的定时任务，提示词覆盖「论文 + 新闻」两条流程。本仓库已经配置了自动化 `arxiv-9-00`（heartbeat），每天 9:00 触发当前线程执行上述流程。
+在 Codex 桌面端创建一条每天 9:00（本地时区）触发的定时任务，提示词覆盖「论文 + 新闻」两条流程。
 
 > 注意：Codex 定时任务只在 Codex 桌面端运行时才会触发；关机或退出 Codex 后不会执行。
 
 ### 方式 B：Windows 任务计划程序
 
-如果不依赖 Codex，可以用 `schtasks` 每天 9:00 运行脚本。但「生成中文总结」需要 LLM，方式 B 下你需要自己把总结步骤替换为调用任意 LLM API（例如 OpenAI / DeepSeek），再继续走 `fill_llm.py` / `send_news_feishu.py` 之后的流程。
+如果不依赖 Codex，可以用 Windows 任务计划程序（`schtasks`）每天 9:00 运行脚本。但「生成中文总结」需要 LLM，方式 B 下需要把总结步骤替换为调用任意 LLM API（例如 OpenAI / DeepSeek），再继续走 `fill_llm.py` / `send_news_feishu.py` 之后的流程。
 
 ### 方式 C：GitHub Actions
 
-把本仓库 push 到 fork 后，可以新增 `.github/workflows/daily.yml`，用 `schedule: cron` 每天触发。需要把飞书 `app_id` / `app_secret` / `user_id` 与 LLM API Key 配置为仓库 secrets。
+把本仓库 push 到 GitHub 后，可以新增 `.github/workflows/daily.yml`，用 `schedule: cron` 每天触发。需要把飞书 `app_id` / `app_secret` / `user_id` 与 LLM API Key 配置为仓库 secrets。GitHub Actions 托管在云端，与本机是否开机无关。
 
 ## 文件说明
 

@@ -1,4 +1,4 @@
-# LLM 量化论文阅读页
+# lookAI 论文阅读页（viewer）
 
 ## 功能
 - 读取 `../papers_record.xlsx` 并转换为 `papers_data.json`
@@ -40,13 +40,7 @@ http://<你的机器局域网IP>:8765
 
 - `index.html`、`app.js`、`styles.css`、`papers_data.json` 会被部署到静态站点
 - 收藏只保存在访问者当前浏览器，不做多设备同步
-- 每次更新 `viewer/papers_data.json` 后执行：
-
-```bash
-bash scripts/publish_viewer.sh
-```
-
-推送成功后，GitHub Actions 会自动更新 Pages。
+- 每次更新 `viewer/papers_data.json` 后提交并推送即可，GitHub Actions 会自动更新 Pages
 
 ## 仅更新数据
 
