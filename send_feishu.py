@@ -21,12 +21,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from datetime import date
-from monitor import is_relevant as monitor_is_relevant
 from pathlib import Path
 
 import requests
+
+from monitor import is_relevant as monitor_is_relevant
 
 BASE_DIR = Path(__file__).resolve().parent
 EXCEL_FILE = BASE_DIR / "papers_record.xlsx"
@@ -47,6 +49,37 @@ EXCEL_HEADERS = [
     "crawled_date",
     "notes",
 ]
+
+# arXiv 分类 -> 中文标签（最多取前 3 个，其余忽略）
+CATEGORY_LABELS = {
+    "cs.AI": "人工智能",
+    "cs.CL": "自然语言处理",
+    "cs.LG": "机器学习",
+    "cs.CV": "计算机视觉",
+    "cs.DB": "数据库",
+    "cs.IR": "信息检索",
+    "cs.MA": "多智能体",
+    "cs.SE": "软件工程",
+    "cs.RO": "机器人",
+    "cs.NE": "神经网络",
+    "cs.SY": "系统与控制",
+    "cs.CR": "安全",
+    "cs.DS": "数据科学",
+}
+
+# 结构化总结标签 -> emoji（用于把多行总结渲染得更易读）
+SUMMARY_EMOJI = [
+    ("一句话", "💡"),
+    ("问题", "❓"),
+    ("动机", "🎯"),
+    ("方法", "🔬"),
+    ("结果", "📊"),
+    ("亮点", "⭐"),
+    ("贡献", "🎯"),
+    ("结论", "📌"),
+]
+
+SEPARATOR = "─" * 20
 
 
 def load_config() -> dict:
@@ -81,16 +114,24 @@ def load_papers() -> list[dict]:
     headers = [str(h) if h is not None else "" for h in rows[0]]
     idx = {name: i for i, name in enumerate(headers)}
 
-    def cell(row, name: str) -> str:
+    def raw(row, name: str) -> str:
         i = idx.get(name)
         if i is None or i >= len(row):
             return ""
         v = row[i]
-        return "" if v is None else str(v).replace("\n", " ").strip()
+        return "" if v is None else str(v).strip()
+
+    def cell(row, name: str) -> str:
+        # 普通字段：压成单行，避免换行打乱排版
+        return raw(row, name).replace("\n", " ").strip()
 
     papers: list[dict] = []
     for row in rows[1:]:
-        papers.append({h: cell(row, h) for h in EXCEL_HEADERS})
+        p = {h: cell(row, h) for h in EXCEL_HEADERS}
+        # summary_cn / abstract 保留换行，便于渲染结构化多行总结
+        p["summary_cn"] = raw(row, "summary_cn")
+        p["abstract"] = raw(row, "abstract")
+        papers.append(p)
     return papers
 
 
@@ -103,51 +144,135 @@ def paper_is_relevant(p: dict) -> bool:
     })
 
 
+def category_summary(categories: str, limit: int = 3) -> str:
+    """把 arXiv 分类转成短中文标签，如 `cs.AI, cs.CL` -> `人工智能 · 自然语言处理`。"""
+    if not categories:
+        return ""
+    parts = [c.strip() for c in categories.replace(";", ",").split(",") if c.strip()]
+    labels: list[str] = []
+    for part in parts:
+        label = CATEGORY_LABELS.get(part, part)
+        if label not in labels:
+            labels.append(label)
+        if len(labels) >= limit:
+            break
+    return " · ".join(labels)
+
+
+def author_summary(authors: str, limit: int = 3) -> str:
+    """作者只展示前 3 位，后面用 `等 N 人` 概括，让标题区更快可读。"""
+    if not authors:
+        return ""
+    names = [n.strip() for n in authors.replace(";", ",").split(",") if n.strip()]
+    if len(names) <= limit:
+        return ", ".join(names)
+    return ", ".join(names[:limit]) + f" 等 {len(names)} 人"
+
+
+def summary_lines(summary_cn: str) -> list[str]:
+    """把中文总结渲染成带 emoji 的易读行。
+
+    - 多行且每行以固定标签开头（如 `方法：...`）时，按标签配 emoji；
+    - 旧版单段总结则整体作为一条 `💡` 行，保证向后兼容。
+    """
+    if not summary_cn:
+        return []
+
+    lines = [ln.strip() for ln in summary_cn.splitlines() if ln.strip()]
+    if not lines:
+        return []
+
+    label_pattern = re.compile(r"^(" + "|".join(re.escape(t) for t, _ in SUMMARY_EMOJI) + r")[:：]\s*(.+)$")
+
+    rendered: list[str] = []
+    parsed_any = False
+    for line in lines:
+        m = label_pattern.match(line)
+        if m:
+            parsed_any = True
+            label, text = m.group(1), m.group(2)
+            emoji = next((e for t, e in SUMMARY_EMOJI if t == label), "")
+            rendered.append(f"{emoji} {text}")
+        else:
+            rendered.append(line)
+
+    if not parsed_any:
+        # 旧版单段总结
+        return [f"💡 {lines[0]}" if len(lines) == 1 else f"💡 {summary_cn.strip()}"]
+    return rendered
+
+
 def paper_lines(papers: list[dict]) -> list[str]:
-    """生成日报正文各行（不含标题行）。"""
-    lines = [f"共发现 **{len(papers)}** 篇新论文"]
-    for p in papers:
+    """生成日报正文各行（不含头部标题行）。"""
+    lines: list[str] = []
+    for i, p in enumerate(papers, start=1):
         title = p.get("title") or "(无标题)"
-        lines.append(f"**{title}**")
-        lines.append(f"arXiv: {p.get('arxiv_id', '')} | {p.get('published_date', '')}")
-        if p.get("authors"):
-            lines.append(f"作者: {p['authors']}")
+        lines.append(f"【{i}】{title}")
+
         if p.get("affiliations"):
-            lines.append(f"单位: {p['affiliations']}")
+            lines.append(f"🏛️ {p['affiliations']}")
+
+        author_text = author_summary(p.get("authors", ""))
+        if author_text:
+            lines.append(f"👥 {author_text}")
+
+        meta_parts = []
+        if p.get("published_date"):
+            meta_parts.append(f"📅 {p['published_date']}")
         if p.get("arxiv_id"):
-            lines.append(f"PDF: https://arxiv.org/pdf/{p['arxiv_id']}")
-        if p.get("summary_cn"):
-            lines.append(f"摘要: {p['summary_cn']}")
+            meta_parts.append(f"arXiv {p['arxiv_id']}")
+        cat = category_summary(p.get("categories", ""))
+        if cat:
+            meta_parts.append(f"🏷️ {cat}")
+        if meta_parts:
+            lines.append(" · ".join(meta_parts))
+
+        if p.get("arxiv_id"):
+            lines.append(f"🔗 PDF: https://arxiv.org/pdf/{p['arxiv_id']}")
+
+        lines.extend(summary_lines(p.get("summary_cn", "")))
+
+        if i < len(papers):
+            lines.append(SEPARATOR)
+
     return lines
 
 
 def build_markdown(papers: list[dict], target_date: str) -> str:
-    lines = [f"📚 **论文日报** | {target_date}"] + paper_lines(papers)
-    lines.append("")
-    lines.append(
-        "PDF 已下载至 papers/，记录已更新至 papers_record.xlsx，网站数据已更新至 viewer/papers_data.json。"
-    )
+    lines = [
+        f"📚 论文日报 | {target_date}",
+        f"共 {len(papers)} 篇 · 已按你关注的方向筛选",
+        "",
+    ] + paper_lines(papers)
     return "\n".join(lines).strip()
 
 
 def line_to_elements(line: str) -> list[dict]:
     """把一行文本转换为飞书 post 富文本元素。"""
-    line = line.replace("**", "")
-    if line.startswith("PDF: "):
-        url = line[len("PDF: "):].strip()
+    if line.startswith("🔗 PDF: "):
+        url = line[len("🔗 PDF: "):].strip()
         return [
-            {"tag": "text", "text": "PDF: "},
+            {"tag": "text", "text": "🔗 PDF: "},
             {"tag": "a", "text": url, "href": url},
         ]
     return [{"tag": "text", "text": line}]
 
 
 def build_post_content(papers: list[dict], target_date: str) -> dict:
-    content = []
-    for line in paper_lines(papers):
+    content: list[list[dict]] = []
+
+    def add_line(line: str) -> None:
         elements = line_to_elements(line)
         if elements:
             content.append(elements)
+
+    add_line(f"📚 论文日报 | {target_date}")
+    add_line(f"共 {len(papers)} 篇 · 已按你关注的方向筛选")
+    add_line("")
+
+    for line in paper_lines(papers):
+        add_line(line)
+
     return {
         "zh_cn": {
             "title": f"📚 论文日报 | {target_date}",

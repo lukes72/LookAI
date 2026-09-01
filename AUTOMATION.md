@@ -6,11 +6,11 @@
 
 1. `python monitor.py` —— 抓取 arXiv 新论文、下载 PDF、写 `papers_record.xlsx`、输出 `new_papers.json`
 2. 读取 `new_papers.json` 中的 `papers_to_process`
-3. LLM 为每篇论文生成 `summary_cn`（90–150 字中文总结）与 `affiliations`（作者单位），结果写入 `llm_fill.json`
+3. LLM 为每篇论文读取 PDF 全文，生成结构化 `summary_cn`（一句话/方法/结果/亮点/结论 五行）与 `affiliations`（作者单位），结果写入 `llm_fill.json`
 4. `python fill_llm.py --json llm_fill.json` —— 把补全结果回填 Excel
 5. `python viewer/build_data.py` —— 重建 `viewer/papers_data.json`
 6. `python monitor.py --sync-pending-state` —— 同步待处理队列
-7. `python send_feishu.py` —— 生成飞书日报并发送
+7. `python send_feishu.py` —— 生成飞书日报并发送（每篇带 `【1】` `【2】` 序号，总结分行展示）
 
 > 无新论文时，`send_feishu.py` 会发送一句“今日未发现新论文”。
 
@@ -19,7 +19,7 @@
 ### 1. 安装依赖
 
 ```bash
-pip install openpyxl requests
+pip install openpyxl requests pymupdf
 ```
 
 ### 2. 登录飞书（lark-cli，user 身份）
@@ -56,7 +56,14 @@ lark-cli auth login
 3. 执行 python monitor.py（抓取 arXiv、下载 PDF、生成 new_papers.json）。
 4. 读取 new_papers.json：
    - 若 papers_to_process 为空，跳到第 8 步。
-   - 否则对 papers_to_process 中每篇论文：根据 abstract 生成 90–150 字中文总结 summary_cn；根据 authors/abstract（或 PDF 前两页）提取作者单位 affiliations，无法确定时填“未找到单位信息”。
+   - 否则对 papers_to_process 中每篇论文：读取 PDF 全文（引言/方法/实验/结果/结论，不能只看 abstract），生成结构化中文总结 summary_cn，每行以标签开头：
+     一句话：<一句可复述的话>
+     方法：<核心技术/架构/训练策略，要具体>
+     结果：<关键实验、数据集、提升幅度等量化结果>
+     亮点：<最大亮点/启发>
+     结论：<结论与潜在应用/局限>
+     每行 20-50 个中文字，方法/结果要具体量化；若 PDF 无法读取则退回 abstract 并在“一句话”中说明“基于摘要”。
+   - 同时提取作者单位 affiliations，无法确定时填“未找到单位信息”。
 5. 把结果写为仓库根目录的 llm_fill.json，格式 {arxiv_id: {affiliations, summary_cn}}。
 6. 依次执行：
    python fill_llm.py --json llm_fill.json
@@ -81,6 +88,7 @@ lark-cli auth login
 
 - `monitor.py`：抓取/查重/下载/写 Excel/输出 `new_papers.json`；`ARXIV_MAX_RESULTS` 环境变量可调抓取数量（默认 50）
 - `fill_llm.py`：把 LLM 补全结果回填 Excel
-- `send_feishu.py`：读 Excel 生成飞书 Markdown 并发送
+- `send_feishu.py`：读 Excel 生成带序号、分行总结的飞书日报并发送
 - `feishu_config.json`（本地，不入库）：飞书接收人 `open_id`
 - `search_keywords.txt`：监控关键词（默认 LLM 量化方向）
+
