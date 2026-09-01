@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-arxiv LLM 量化论文自动监控主脚本
+arxiv AI 论文自动监控主脚本
 每天定时执行：搜索 -> 查重 -> 下载 PDF -> 输出结构化 JSON
 中文总结和作者单位提取由 hermes cronjob agent 调用 LLM 完成
 """
@@ -29,7 +29,8 @@ OUTPUT_JSON = BASE_DIR / "new_papers.json"   # 输出给 hermes agent 的中间�
 
 # arxiv API 配置
 ARXIV_API = "https://export.arxiv.org/api/query"
-MAX_RESULTS = int(os.environ.get("ARXIV_MAX_RESULTS", "50"))
+MAX_RESULTS = int(os.environ.get("ARXIV_MAX_RESULTS", "30"))
+MAX_TOTAL_RESULTS = int(os.environ.get("ARXIV_MAX_TOTAL", "30"))
 REQUEST_INTERVAL = 3  # 秒
 
 # ==================== 工具函数 ====================
@@ -93,24 +94,32 @@ def save_crawled_ids_batch(new_ids: list[str]):
             f.write(arxiv_id + "\n")
 
 
-def load_search_keywords() -> str:
-    default_keywords = "all:quantization+AND+all:large+AND+all:language+AND+all:model"
+def load_search_keywords() -> list[str]:
+    """读取搜索查询列表：每行一个 query，支持 # 注释与空行。"""
+    default_queries = [
+        "cat:cs.AI",
+        "cat:cs.CL",
+    ]
     if KEYWORDS_FILE.exists():
         with open(KEYWORDS_FILE, "r", encoding="utf-8") as f:
-            kw = f.read().strip()
-            return kw if kw else default_keywords
-    return default_keywords
+            queries = [
+                line.strip()
+                for line in f
+                if line.strip() and not line.strip().startswith("#")
+            ]
+            return queries if queries else default_queries
+    return default_queries
 
-
-def search_arxiv_papers(keywords: str, max_results: int = MAX_RESULTS) -> list[dict]:
+def _search_arxiv_single(query: str, max_results: int = MAX_RESULTS) -> list[dict]:
+    """执行单个 arXiv API 查询并解析结果。"""
     url = (
-        f"{ARXIV_API}?search_query={keywords}"
+        f"{ARXIV_API}?search_query={query}"
         f"&max_results={max_results}"
         f"&sortBy=submittedDate"
         f"&sortOrder=descending"
     )
 
-    print(f"[INFO] Searching arxiv: {keywords}")
+    print(f"[INFO] Searching arxiv: {query}")
     response = requests.get(url, timeout=30)
     response.raise_for_status()
 
@@ -151,6 +160,20 @@ def search_arxiv_papers(keywords: str, max_results: int = MAX_RESULTS) -> list[d
 
     return papers
 
+
+def search_arxiv_papers(queries: list[str], max_results: int = MAX_RESULTS) -> list[dict]:
+    """按多个查询分别搜索，合并去重（按 arxiv_id），再按发布日期倒序返回。"""
+    merged: dict[str, dict] = {}
+    for query in queries:
+        for paper in _search_arxiv_single(query, max_results):
+            merged.setdefault(paper["arxiv_id"], paper)
+        time.sleep(REQUEST_INTERVAL)
+    papers = sorted(
+        merged.values(),
+        key=lambda p: (p["published_date"], p["arxiv_id"]),
+        reverse=True,
+    )
+    return papers
 
 def download_pdf(paper: dict) -> bool:
     pdf_path = PAPERS_DIR / paper["pdf_filename"]
@@ -508,13 +531,18 @@ def main():
     )
 
     # 搜索
-    keywords = load_search_keywords()
-    all_papers = search_arxiv_papers(keywords)
+    queries = load_search_keywords()
+    all_papers = search_arxiv_papers(queries)
     print(f"[INFO] Retrieved {len(all_papers)} papers from arxiv")
 
     # 查重
     new_papers = [p for p in all_papers if p["arxiv_id"] not in crawled_ids]
     print(f"[INFO] {len(new_papers)} NEW papers")
+
+    # 控制每日抓取总量，避免一次下载过多
+    if len(new_papers) > MAX_TOTAL_RESULTS:
+        print(f"[INFO] 截断至每天最多 {MAX_TOTAL_RESULTS} 篇")
+        new_papers = new_papers[:MAX_TOTAL_RESULTS]
 
     # 下载 PDF + 更新 ID
     downloaded = []
@@ -549,7 +577,7 @@ def main():
             "pending_count": 0,
             "new_papers": [],
             "papers_to_process": [],
-            "feishu_msg": f"✅ 今日（{date.today().isoformat()}）未发现新的 LLM 量化论文。",
+            "feishu_msg": f"✅ 今日（{date.today().isoformat()}）未发现新的 AI 论文。",
         }
         with open(OUTPUT_JSON, "w", encoding="utf-8") as f:
             json.dump(output, f, ensure_ascii=False, indent=2)

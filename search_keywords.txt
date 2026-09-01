@@ -1,1 +1,21 @@
-all:quantization+AND+all:large+AND+all:language+AND+all:model
+# arXiv 论文监控关键词（每个查询单独一行；# 开头为注释，空行忽略）。
+# 覆盖 cs.AI / cs.CL 的 AI 热点方向，可自行增删。
+
+# 大语言模型
+cat:cs.CL+AND+all:large+AND+all:language+AND+all:model
+# LLM 智能体
+cat:cs.AI+AND+all:agent
+# 推理 / 思维链
+cat:cs.AI+AND+all:reasoning
+# 多模态与视觉语言模型
+cat:cs.AI+AND+all:multimodal
+# 检索增强生成
+cat:cs.CL+AND+all:retrieval+AND+all:augmented+AND+all:generation
+# 扩散生成模型
+cat:cs.AI+AND+all:diffusion
+# 模型对齐与安全
+cat:cs.AI+AND+all:alignment
+# 量化与高效推理
+cat:cs.AI+AND+all:quantization
+# 代码大模型
+cat:cs.CL+AND+all:code+AND+all:model

@@ -174,7 +174,7 @@ def main() -> None:
         selected = [p for p in papers if p.get("crawled_date") == args.date]
 
     if not selected:
-        markdown = f"✅ 今日（{args.date}）未发现新的 LLM 量化论文。"
+        markdown = f"✅ 今日（{args.date}）未发现新的 AI 论文。"
     else:
         markdown = build_markdown(selected, args.date)
 
