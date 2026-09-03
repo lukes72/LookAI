@@ -1,3 +1,5 @@
 {
+  "app_id": "cli_xxxxxxxxx",
+  "app_secret": "replace-with-secret",
   "user_id": "ou_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 }

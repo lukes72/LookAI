@@ -2,7 +2,7 @@
 
 > 自动抓取 arXiv 最新论文与 AI 科技新闻，生成中文总结，经过质量检查后按需推送到飞书。
 
-lookAI 是一个可以脱离 Codex 独立运行的 Python 日报机器人，包含两条流水线：
+lookAI 是一个可以脱离 Codex 独立运行的 Python 日报机器人，包含论文和新闻两条流水线。
 
 - **📚 arXiv 论文日报**：按关键词监控 arXiv（cs.AI / cs.CL / cs.LG 等），下载 PDF、读取全文生成结构化中文总结，推送到飞书。
 - **📰 AI 新闻日报**：从公司官方博客 + 中英文科技媒体抓取最近动态（新模型 / 新技术 / 大公司动态），生成中文总结，推送到飞书。
@@ -120,7 +120,7 @@ arXiv 2601.14888
 ### 1. 安装依赖
 
 ```bash
-pip install openpyxl requests pymupdf
+pip install openpyxl==3.1.5 requests==2.32.3 pymupdf==1.26.4 feedparser==6.0.11
 ```
 
 ### 2. 配置 LLM
@@ -165,18 +165,27 @@ python daily_runner.py --skip-fetch --no-send
 ```
 
 统一入口还支持 `--papers-only`、`--news-only` 和 `--dry-run`。真实发送必须显式使用 `--send`，且质量检查通过；不要绕过入口直接调用发送脚本。
-
 ---
 
 ## 🤖 每天 9:00 自动推送
 
-详细流水线与自动化方式见 [AUTOMATION.md](AUTOMATION.md)。项目已提供：
+详细流水线与自动化方式见 [AUTOMATION.md](AUTOMATION.md)。推荐使用 GitHub Actions：项目已提供 `.github/workflows/daily.yml`，每天 UTC 01:00（北京时间 09:00）在云端运行，与本机是否开机、Codex 桌面端是否运行无关。工作流会在质量门禁通过后发送飞书，并提交云端下一次运行所需的状态文件。
+
+在仓库 `Settings > Secrets and variables > Actions` 中配置：
+
+`LLM_API_BASE`、`LLM_API_KEY`、`LLM_MODEL`、`FEISHU_APP_ID`、`FEISHU_APP_SECRET`、`FEISHU_USER_ID`。
+
+需要持久化的状态文件包括 `papers_record.xlsx`、`crawled_ids.txt`、`pending_llm_ids.txt`、`new_papers.json`、`news_items.json`、`news_seen.txt`、`quality_review.json` 和 `viewer/papers_data.json`。PDF、本地 `feishu_config.json`、临时 LLM 文件和密钥不会提交。
+
+工作流支持 Actions 页面中的 `workflow_dispatch` 手动触发。`daily_runner.py --send` 在 LLM 调用失败或质量门禁失败时返回非零并禁止发送。
+
+项目也提供：
 
 - `openclaw/daily-job.example.yaml`：OpenClaw 定时任务示例
 - `run_daily.ps1`：Windows 任务计划程序入口
 - `C:\Users\ysshen\.codex\skills\hermes-arxiv-daily`：交互式 Agent Skill
 
-> 提示：Codex 定时任务与 Windows 任务计划都依赖本机在计划时间处于运行状态；GitHub Actions 则托管在云端，与本机是否开机无关。
+> 提示：OpenClaw、Windows 任务计划和 Agent Skill 分别适合独立调度、本机调度和交互式排查；只有 GitHub Actions 能在不依赖本机开机的情况下运行。
 
 ---
 
@@ -203,8 +212,7 @@ lookAI/
 - LLM 请求失败、总结缺失、URL 无效、占位文本、历史记录不完整或质量门禁失败时，统一入口会阻止发送。
 - `quality_review.json` 保存最近一次检查结果，可用于排查日报为什么没有发送。
 - 历史 Excel 中未完成的总结也可能阻断整日报告；需要先补全数据，再重新运行质量检查。
-- 之前在聊天或日志中暴露过的飞书 App Secret 应立即在飞书开放平台轮换或重置，新的凭据只放在本地忽略配置或环境变量中。
-
+- 之前在聊天、日志或命令行中暴露过的飞书 App Secret 和 GitHub token 应立即轮换或撤销，新的凭据只放在 GitHub Actions Secrets、本地忽略配置或环境变量中；GitHub token 使用最小权限。
 ---
 
 ## 📄 License
