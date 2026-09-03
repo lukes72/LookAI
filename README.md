@@ -15,7 +15,7 @@ lookAI 是一个可以脱离 Codex 独立运行的 Python 日报机器人，包�
 - 可以使用 Agent Skill 交互调用，也可以使用 OpenClaw、Windows 任务计划或 GitHub Actions 脱离 Codex 定时运行
 - 默认只生成和检查结果，不发送飞书；只有显式传入 `--send` 且质量门禁通过才会发送
 - 每篇论文带 `【1】【2】` 序号，信息分行排版，快速扫读
-- 中文总结**不只读摘要**，会结合全文生成：一句话、动机、方法、结果、亮点、结论
+- 中文总结**不只读摘要**，会结合全文生成：一句话、动机、方法、结果、结论
 - 自动过滤临床医疗、生物医学、审计、农业、金融等非目标方向
 - 可选的本地 / GitHub Pages 网页阅读器，支持日期筛选、关键词检索、收藏
 
@@ -26,67 +26,61 @@ lookAI 是一个可以脱离 Codex 独立运行的 Python 日报机器人，包�
 ### 论文日报
 
 ```
-📚 论文日报 | 2026-09-01
+论文日报 | 2026-09-01
 共 12 篇 · 已按你关注的方向筛选
 
 【1】Jet-RL: Enabling On-Policy FP8 Reinforcement Learning with Unified Training and Rollout Precision Flow
-🏛️ NVIDIA
-👥 Haocheng Xi, Charlie Ruan, Peiyuan Liao 等 10 人
-📅 2026-01-20
-arXiv 2601.14243
-🏷️ 机器学习
-🔗 PDF: https://arxiv.org/pdf/2601.14243
-💡 一句话：把训练和 rollout 统一到 FP8 精度，显著降低强化学习显存与通信开销。
-🎯 动机：LLM 强化学习因 rollout 长序列导致 KV cache 与显存成为瓶颈。
-🔬 方法：设计统一的 FP8 训练 + rollout 精度流程，减少精度切换损失。
-📊 结果：在保持训练稳定性的同时降低显存占用。
-⭐ 亮点：工程上可落地的低精度 RL 栈。
-📌 结论：FP8 是 LLM RL 的高性价比精度选择。
+机构：NVIDIA
+作者：Haocheng Xi, Charlie Ruan, Peiyuan Liao 等 10 人
+2026-01-20 · arXiv 2601.14243 · 机器学习
+PDF: https://arxiv.org/pdf/2601.14243
+一句话：把训练和 rollout 统一到 FP8 精度，显著降低强化学习显存与通信开销。
+动机：LLM 强化学习因 rollout 长序列导致 KV cache 与显存成为瓶颈。
+方法：设计统一的 FP8 训练 + rollout 精度流程，减少精度切换损失。
+结果：在保持训练稳定性的同时降低显存占用。
+结论：FP8 是 LLM RL 的高性价比精度选择。
 
 ────────────────────
 
 【2】What Makes Low-Bit Quantization-Aware Training Work for Reasoning LLMs? A Systematic Study
-🏛️ 未找到单位信息
-👥 Keyu Lv, Manyi Zhang, Xiaobo Xia 等 9 人
-📅 2026-01-21
-arXiv 2601.14888
-🏷️ 机器学习
-🔗 PDF: https://arxiv.org/pdf/2601.14888
-💡 一句话：系统研究低比特 QAT 在推理模型上的关键成功因素。
-🎯 动机：低比特量化对推理型大模型的影响缺乏系统结论。
-🔬 方法：对多种 QAT 策略做受控对比实验。
-📊 结果：指出影响低比特 QAT 效果的关键变量。
-⭐ 亮点：为推理模型的量化训练提供实用指导。
-📌 结论：合理配置下，低比特 QAT 可用于推理 LLM。
+机构：未提供
+作者：Keyu Lv, Manyi Zhang, Xiaobo Xia 等 9 人
+2026-01-21 · arXiv 2601.14888 · 机器学习
+PDF: https://arxiv.org/pdf/2601.14888
+一句话：系统研究低比特 QAT 在推理模型上的关键成功因素。
+动机：低比特量化对推理型大模型的影响缺乏系统结论。
+方法：对多种 QAT 策略做受控对比实验。
+结果：指出影响低比特 QAT 效果的关键变量。
+结论：合理配置下，低比特 QAT 可用于推理 LLM。
 ```
 
 无新论文时：
 
 ```
-✅ 今日（2026-09-01）未发现新的 AI 论文。
+今日（2026-09-01）未发现新的 AI 论文。
 ```
 
 ### 新闻日报
 
 ```
-📰 AI 新闻日报 | 2026-09-01
+AI 新闻日报 | 2026-09-01
 共 8 条 · 新模型 / 新技术 / 大公司动态
 
 【1】OpenAI 发布新一代推理模型
 来源：OpenAI | 2026-09-01
-💡 OpenAI 推出新一代推理模型，在数学与代码基准上显著提升，并开放 API 试用。
-🔗 原文：https://openai.com/news/...
+OpenAI 推出新一代推理模型，在数学与代码基准上显著提升，并开放 API 试用。
+原文：https://openai.com/news/...
 
 【2】智源社区：多模态大模型新进展
 来源：智源社区 | 2026-09-01
-💡 研究团队提出新的多模态训练范式，在多个视觉语言基准上刷新记录。
-🔗 原文：https://hub.baai.ac.cn/...
+研究团队提出新的多模态训练范式，在多个视觉语言基准上刷新记录。
+原文：https://hub.baai.ac.cn/...
 ```
 
 无新新闻时：
 
 ```
-✅ 今日没有新的 AI 新闻。
+今日没有新的 AI 新闻。
 ```
 
 ---

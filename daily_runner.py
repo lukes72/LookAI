@@ -20,6 +20,11 @@ from typing import Any
 
 import quality_review
 
+try:
+    import fitz  # PyMuPDF，用于读取论文 PDF 全文
+except ImportError:  # pragma: no cover - 缺少依赖时回退到仅使用摘要
+    fitz = None
+
 
 BASE_DIR = Path(__file__).resolve().parent
 REVIEW_JSON = BASE_DIR / "quality_review.json"
@@ -73,6 +78,33 @@ def request_llm(messages: list[dict[str, str]]) -> dict[str, Any]:
     return result
 
 
+def extract_pdf_text(pdf_path: str, max_chars: int = 8000) -> str:
+    """读取论文 PDF 正文，返回截断后的纯文本；失败时返回空字符串。"""
+    if not fitz or not pdf_path:
+        return ""
+    pdf = Path(pdf_path)
+    if not pdf.exists():
+        return ""
+    try:
+        doc = fitz.open(str(pdf))
+        parts: list[str] = []
+        total = 0
+        for page in doc:
+            text = (page.get_text("text") or "").strip()
+            if not text:
+                continue
+            if total + len(text) > max_chars:
+                parts.append(text[: max_chars - total])
+                total = max_chars
+                break
+            parts.append(text)
+            total += len(text)
+        doc.close()
+        return "\n".join(parts).strip()
+    except Exception:
+        return ""
+
+
 def summarize_papers() -> None:
     state = load_json(PAPERS_JSON, {})
     papers = state.get("papers_to_process", []) if isinstance(state, dict) else []
@@ -82,16 +114,28 @@ def summarize_papers() -> None:
     results: dict[str, dict[str, str]] = {}
     for paper in papers:
         arxiv_id = str(paper.get("arxiv_id", "")).strip()
+        full_text = extract_pdf_text(paper.get("pdf_local_path", ""))
         prompt = {
             "role": "user",
             "content": json.dumps(
                 {
-                    "task": "仅根据给定论文标题和摘要，生成严格 JSON。不要猜测作者单位、性能数据或来源中没有的事实。summary_cn 用 1 至 2 句中文概括研究问题、方法和结果；affiliations 只有在输入明确给出单位时填写，否则为空字符串。",
+                    "task": (
+                        "请基于论文标题、摘要和正文，输出严格 JSON。"
+                        "summary_cn 用中文结构化总结，逐行给出以下字段（材料缺失时写“未提供”）：\n"
+                        "一句话：一句话概括论文核心贡献\n"
+                        "动机：论文要解决的问题\n"
+                        "方法：提出的方法或技术\n"
+                        "结果：关键实验结果或发现\n"
+                        "结论：论文的最终结论与意义\n"
+                        "affiliations 从作者信息或正文首页提取作者所属单位，用分号分隔；"
+                        "无法确定则返回空字符串。只使用给定材料，不得臆造数字、单位或性能数据。"
+                    ),
                     "paper": {
                         "arxiv_id": arxiv_id,
                         "title": paper.get("title", ""),
                         "authors": paper.get("authors", ""),
                         "abstract": paper.get("abstract") or paper.get("summary", ""),
+                        "full_text": full_text,
                     },
                     "output": {"summary_cn": "", "affiliations": ""},
                 },
@@ -100,7 +144,7 @@ def summarize_papers() -> None:
         }
         result = request_llm(
             [
-                {"role": "system", "content": "你是严谨的 AI 论文编辑。只使用输入事实，不做未经证实的推断。"},
+                {"role": "system", "content": "你是严谨的 AI 论文编辑，精通机器学习与自然语言处理。只使用输入材料中的事实，不做未经证实的推断。"},
                 prompt,
             ]
         )

@@ -87,12 +87,13 @@ def load_news(json_path: Path) -> list[dict]:
     # 只发送已经生成中文总结的条目
     items = [it for it in items if (it.get("summary_cn") or "").strip()]
     items.sort(key=lambda x: x.get("published", ""), reverse=True)
+    items.sort(key=lambda x: x.get("priority", 0), reverse=True)
     return items
 
 
 def build_markdown(items: list[dict], target_date: str) -> str:
     lines = [
-        f"📰 AI 新闻日报 | {target_date}",
+        f"AI 新闻日报 | {target_date}",
         f"共 {len(items)} 条 · 新模型 / 新技术 / 大公司动态",
         "",
     ]
@@ -105,18 +106,18 @@ def build_markdown(items: list[dict], target_date: str) -> str:
         lines.append(f"【{i}】{title}")
         lines.append(f"来源：{src} | {date}")
         if summary:
-            lines.append(f"💡 {summary}")
+            lines.append(summary)
         if url:
-            lines.append(f"🔗 原文：{url}")
+            lines.append(f"原文：{url}")
         lines.append("")
     return "\n".join(lines).strip()
 
 
 def line_to_elements(line: str) -> list[dict]:
-    if line.startswith("🔗 原文："):
-        url = line[len("🔗 原文："):].strip()
+    if line.startswith("原文："):
+        url = line[len("原文："):].strip()
         return [
-            {"tag": "text", "text": "🔗 原文："},
+            {"tag": "text", "text": "原文："},
             {"tag": "a", "text": url, "href": url},
         ]
     return [{"tag": "text", "text": line}]
@@ -130,7 +131,7 @@ def build_post_content(items: list[dict], target_date: str) -> dict:
         if elements:
             content.append(elements)
 
-    add_line(f"📰 AI 新闻日报 | {target_date}")
+    add_line(f"AI 新闻日报 | {target_date}")
     add_line(f"共 {len(items)} 条 · 新模型 / 新技术 / 大公司动态")
     add_line("")
 
@@ -143,14 +144,14 @@ def build_post_content(items: list[dict], target_date: str) -> dict:
         add_line(f"【{i}】{title}")
         add_line(f"来源：{src} | {date}")
         if summary:
-            add_line(f"💡 {summary}")
+            add_line(summary)
         if url:
-            add_line(f"🔗 原文：{url}")
+            add_line(f"原文：{url}")
         add_line("")
 
     return {
         "zh_cn": {
-            "title": f"📰 AI 新闻日报 | {target_date}",
+            "title": f"AI 新闻日报 | {target_date}",
             "content": content,
         }
     }
@@ -207,10 +208,10 @@ def main() -> None:
     target_date = datetime.now().astimezone().date().isoformat()
 
     if not items:
-        markdown = "✅ 今日没有新的 AI 新闻。"
+        markdown = "今日没有新的 AI 新闻。"
         post_content = {
             "zh_cn": {
-                "title": f"📰 AI 新闻日报 | {target_date}",
+                "title": f"AI 新闻日报 | {target_date}",
                 "content": [[{"tag": "text", "text": markdown}]],
             }
         }

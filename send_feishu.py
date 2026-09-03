@@ -67,17 +67,17 @@ CATEGORY_LABELS = {
     "cs.DS": "数据科学",
 }
 
-# 结构化总结标签 -> emoji（用于把多行总结渲染得更易读）
-SUMMARY_EMOJI = [
-    ("一句话", "💡"),
-    ("问题", "❓"),
-    ("动机", "🎯"),
-    ("方法", "🔬"),
-    ("结果", "📊"),
-    ("亮点", "⭐"),
-    ("贡献", "🎯"),
-    ("结论", "📌"),
-]
+# 结构化总结标签（多行总结渲染时保留中文标签，不添加 emoji）
+SUMMARY_LABELS = (
+    "一句话",
+    "问题",
+    "动机",
+    "方法",
+    "结果",
+    "亮点",
+    "贡献",
+    "结论",
+)
 
 SEPARATOR = "─" * 20
 
@@ -170,11 +170,7 @@ def author_summary(authors: str, limit: int = 3) -> str:
 
 
 def summary_lines(summary_cn: str) -> list[str]:
-    """把中文总结渲染成带 emoji 的易读行。
-
-    - 多行且每行以固定标签开头（如 `方法：...`）时，按标签配 emoji；
-    - 旧版单段总结则整体作为一条 `💡` 行，保证向后兼容。
-    """
+    """把中文总结渲染成无 emoji 的易读行，保留中文标签与原文内容。"""
     if not summary_cn:
         return []
 
@@ -182,23 +178,19 @@ def summary_lines(summary_cn: str) -> list[str]:
     if not lines:
         return []
 
-    label_pattern = re.compile(r"^(" + "|".join(re.escape(t) for t, _ in SUMMARY_EMOJI) + r")[:：]\s*(.+)$")
+    label_pattern = re.compile(
+        r"^(" + "|".join(re.escape(t) for t in SUMMARY_LABELS) + r")[:：]\s*(.+)$"
+    )
 
     rendered: list[str] = []
-    parsed_any = False
     for line in lines:
         m = label_pattern.match(line)
         if m:
-            parsed_any = True
             label, text = m.group(1), m.group(2)
-            emoji = next((e for t, e in SUMMARY_EMOJI if t == label), "")
-            rendered.append(f"{emoji} {text}")
+            rendered.append(f"{label}：{text}")
         else:
             rendered.append(line)
 
-    if not parsed_any:
-        # 旧版单段总结
-        return [f"💡 {lines[0]}" if len(lines) == 1 else f"💡 {summary_cn.strip()}"]
     return rendered
 
 
@@ -210,25 +202,25 @@ def paper_lines(papers: list[dict]) -> list[str]:
         lines.append(f"【{i}】{title}")
 
         if p.get("affiliations"):
-            lines.append(f"🏛️ {p['affiliations']}")
+            lines.append(f"机构：{p['affiliations']}")
 
         author_text = author_summary(p.get("authors", ""))
         if author_text:
-            lines.append(f"👥 {author_text}")
+            lines.append(f"作者：{author_text}")
 
         meta_parts = []
         if p.get("published_date"):
-            meta_parts.append(f"📅 {p['published_date']}")
+            meta_parts.append(p["published_date"])
         if p.get("arxiv_id"):
             meta_parts.append(f"arXiv {p['arxiv_id']}")
         cat = category_summary(p.get("categories", ""))
         if cat:
-            meta_parts.append(f"🏷️ {cat}")
+            meta_parts.append(cat)
         if meta_parts:
             lines.append(" · ".join(meta_parts))
 
         if p.get("arxiv_id"):
-            lines.append(f"🔗 PDF: https://arxiv.org/pdf/{p['arxiv_id']}")
+            lines.append(f"PDF: https://arxiv.org/pdf/{p['arxiv_id']}")
 
         lines.extend(summary_lines(p.get("summary_cn", "")))
 
@@ -240,7 +232,7 @@ def paper_lines(papers: list[dict]) -> list[str]:
 
 def build_markdown(papers: list[dict], target_date: str) -> str:
     lines = [
-        f"📚 论文日报 | {target_date}",
+        f"论文日报 | {target_date}",
         f"共 {len(papers)} 篇 · 已按你关注的方向筛选",
         "",
     ] + paper_lines(papers)
@@ -249,10 +241,10 @@ def build_markdown(papers: list[dict], target_date: str) -> str:
 
 def line_to_elements(line: str) -> list[dict]:
     """把一行文本转换为飞书 post 富文本元素。"""
-    if line.startswith("🔗 PDF: "):
-        url = line[len("🔗 PDF: "):].strip()
+    if line.startswith("PDF: "):
+        url = line[len("PDF: "):].strip()
         return [
-            {"tag": "text", "text": "🔗 PDF: "},
+            {"tag": "text", "text": "PDF: "},
             {"tag": "a", "text": url, "href": url},
         ]
     return [{"tag": "text", "text": line}]
@@ -266,7 +258,7 @@ def build_post_content(papers: list[dict], target_date: str) -> dict:
         if elements:
             content.append(elements)
 
-    add_line(f"📚 论文日报 | {target_date}")
+    add_line(f"论文日报 | {target_date}")
     add_line(f"共 {len(papers)} 篇 · 已按你关注的方向筛选")
     add_line("")
 
@@ -275,7 +267,7 @@ def build_post_content(papers: list[dict], target_date: str) -> dict:
 
     return {
         "zh_cn": {
-            "title": f"📚 论文日报 | {target_date}",
+            "title": f"论文日报 | {target_date}",
             "content": content,
         }
     }
@@ -367,10 +359,10 @@ def main() -> None:
         print(f"[FILTER] 已过滤 {before - len(selected)} 篇非目标方向论文（临床/医疗/生物/农业/金融/审计等）")
 
     if not selected:
-        markdown = f"✅ 今日（{args.date}）未发现新的 AI 论文。"
+        markdown = f"今日（{args.date}）未发现新的 AI 论文。"
         post_content = {
             "zh_cn": {
-                "title": f"📚 论文日报 | {args.date}",
+                "title": f"论文日报 | {args.date}",
                 "content": [[{"tag": "text", "text": markdown}]],
             }
         }

@@ -44,6 +44,28 @@ HEADERS = {
 REQUEST_TIMEOUT = 20
 MAX_ITEMS_PER_SOURCE = 10
 
+SOURCE_CREDIBILITY = {
+    "openai.com": 100,
+    "deepmind.google": 95,
+    "blog.google": 92,
+    "huggingface.co": 90,
+    "technologyreview.com": 85,
+    "theverge.com": 80,
+    "techcrunch.com": 78,
+    "venturebeat.com": 75,
+    "hub.baai.ac.cn": 70,
+    "aiera.com.cn": 65,
+}
+
+
+def source_credibility(url: str) -> int:
+    """按来源域名返回可信度评分；未知来源给中性分。"""
+    host = (url or "").replace("https://", "").replace("http://", "").split("/")[0]
+    for key, score in SOURCE_CREDIBILITY.items():
+        if key in host:
+            return score
+    return 50
+
 
 def load_sources() -> list[str]:
     if not SOURCES_FILE.exists():
@@ -66,6 +88,41 @@ def load_seen() -> set:
 def item_id(title: str) -> str:
     norm = re.sub(r"\s+", " ", (title or "")).strip().lower()
     return hashlib.sha1(norm.encode("utf-8")).hexdigest()
+
+
+def normalize_tokens(title: str) -> set[str]:
+    text = re.sub(r"[^a-z0-9\u4e00-\u9fff]+", " ", (title or "").lower())
+    return {t for t in text.split() if len(t) > 1}
+
+
+def jaccard(left: set[str], right: set[str]) -> float:
+    if not left and not right:
+        return 1.0
+    if not left or not right:
+        return 0.0
+    return len(left & right) / len(left | right)
+
+
+def dedup_same_event(items: list[dict], threshold: float = 0.62) -> list[dict]:
+    """同事件去重：标题高度相似的条目只保留可信度更高、发布时间更新的那一条。"""
+    kept: list[dict] = []
+    for item in items:
+        tokens = normalize_tokens(item.get("title", ""))
+        best_idx, best_score = -1, 0.0
+        for idx, existing in enumerate(kept):
+            score = jaccard(tokens, normalize_tokens(existing.get("title", "")))
+            if score > best_score:
+                best_idx, best_score = idx, score
+        if best_idx == -1 or best_score < threshold:
+            kept.append(item)
+        else:
+            existing = kept[best_idx]
+            if (item.get("credibility", 0), item.get("published", "")) > (
+                existing.get("credibility", 0),
+                existing.get("published", ""),
+            ):
+                kept[best_idx] = item
+    return kept
 
 
 def clean_text(s: str) -> str:
@@ -172,6 +229,7 @@ def parse_feed(xml_text: str, source: str, hours: int, seen: set) -> list[dict]:
             "url": link,
             "published": pub.isoformat() if pub else "",
             "summary_short": summary[:500],
+            "credibility": source_credibility(source),
             "summary_cn": "",
         })
 
@@ -228,6 +286,7 @@ def fetch_hub_baai(hours: int, seen: set) -> list[dict]:
             "url": link,
             "published": pub.isoformat() if pub else "",
             "summary_short": summary[:500],
+            "credibility": source_credibility(source_url),
             "summary_cn": "",
         })
     return items
@@ -271,11 +330,23 @@ def main() -> None:
             errors.append(msg)
             print(f"[FAIL] {msg}")
 
-    # 合并去重 + 排序（新的在前）
+    # 合并同源精确去重，再做同事件跨源去重，并按可信度与优先级排序
     uniq: dict[str, dict] = {}
     for it in all_items:
-        uniq.setdefault(it["id"], it)
-    items = sorted(uniq.values(), key=lambda x: x.get("published", ""), reverse=True)
+        prev = uniq.get(it["id"])
+        if prev is None:
+            uniq[it["id"]] = it
+        elif (it.get("credibility", 0), it.get("published", "")) > (
+            prev.get("credibility", 0),
+            prev.get("published", ""),
+        ):
+            uniq[it["id"]] = it
+
+    items = dedup_same_event(list(uniq.values()))
+    for it in items:
+        it.setdefault("priority", it.get("credibility", 50))
+    items.sort(key=lambda x: x.get("published", ""), reverse=True)
+    items.sort(key=lambda x: x.get("priority", 0), reverse=True)
 
     output = {
         "date": datetime.now().astimezone().date().isoformat(),

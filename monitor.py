@@ -190,17 +190,28 @@ def _search_arxiv_single(query: str, max_results: int = MAX_RESULTS) -> list[dic
 
 
 def search_arxiv_papers(queries: list[str], max_results: int = MAX_RESULTS) -> list[dict]:
-    """按多个查询分别搜索，合并去重（按 arxiv_id），过滤领域黑名单，再按发布日期倒序返回。"""
+    """按多个查询分别搜索，合并去重（按 arxiv_id），过滤领域黑名单。
+
+    阅读优先级：命中多个关键词的论文排在前面；相同优先级再按发布日期倒序。
+    """
     merged: dict[str, dict] = {}
     for query in queries:
         for paper in _search_arxiv_single(query, max_results):
-            merged.setdefault(paper["arxiv_id"], paper)
+            arxiv_id = paper["arxiv_id"]
+            if arxiv_id not in merged:
+                paper["matched_queries"] = 1
+                merged[arxiv_id] = paper
+            else:
+                merged[arxiv_id]["matched_queries"] += 1
         time.sleep(REQUEST_INTERVAL)
     papers = [p for p in merged.values() if is_relevant(p)]
     filtered = len(merged) - len(papers)
     if filtered:
         print(f"[FILTER] 已过滤 {filtered} 篇应用类论文（临床/医疗/生物/农业/金融/审计等）")
+    for paper in papers:
+        paper["priority"] = paper.get("matched_queries", 1)
     papers.sort(key=lambda p: (p["published_date"], p["arxiv_id"]), reverse=True)
+    papers.sort(key=lambda p: p["priority"], reverse=True)
     return papers
 
 def download_pdf(paper: dict) -> bool:
@@ -605,7 +616,7 @@ def main():
             "pending_count": 0,
             "new_papers": [],
             "papers_to_process": [],
-            "feishu_msg": f"✅ 今日（{date.today().isoformat()}）未发现新的 AI 论文。",
+            "feishu_msg": f"今日（{date.today().isoformat()}）未发现新的 AI 论文。",
         }
         with open(OUTPUT_JSON, "w", encoding="utf-8") as f:
             json.dump(output, f, ensure_ascii=False, indent=2)
