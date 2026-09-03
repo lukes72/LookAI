@@ -1,8 +1,8 @@
 # lookAI
 
-> 每天早 9 点，自动抓取 arXiv 最新论文 + AI 科技新闻，生成中文总结，并通过飞书机器人推送到你的手机/桌面。
+> 自动抓取 arXiv 最新论文与 AI 科技新闻，生成中文总结，经过质量检查后按需推送到飞书。
 
-lookAI 是一个纯 Python 的「AI 论文 + AI 新闻」日报机器人，包含两条独立流水线：
+lookAI 是一个可以脱离 Codex 独立运行的 Python 日报机器人，包含两条流水线：
 
 - **📚 arXiv 论文日报**：按关键词监控 arXiv（cs.AI / cs.CL / cs.LG 等），下载 PDF、读取全文生成结构化中文总结，推送到飞书。
 - **📰 AI 新闻日报**：从公司官方博客 + 中英文科技媒体抓取最近动态（新模型 / 新技术 / 大公司动态），生成中文总结，推送到飞书。
@@ -11,7 +11,9 @@ lookAI 是一个纯 Python 的「AI 论文 + AI 新闻」日报机器人，包�
 
 ## ✨ 核心特性
 
-- 每天 9:00 自动执行（Codex 定时任务 / Windows 计划任务 / GitHub Actions 任选）
+- 统一入口 `daily_runner.py` 编排抓取、总结、回填、质量检查和可选发送
+- 可以使用 Agent Skill 交互调用，也可以使用 OpenClaw、Windows 任务计划或 GitHub Actions 脱离 Codex 定时运行
+- 默认只生成和检查结果，不发送飞书；只有显式传入 `--send` 且质量门禁通过才会发送
 - 每篇论文带 `【1】【2】` 序号，信息分行排版，快速扫读
 - 中文总结**不只读摘要**，会结合全文生成：一句话、动机、方法、结果、亮点、结论
 - 自动过滤临床医疗、生物医学、审计、农业、金融等非目标方向
@@ -121,7 +123,19 @@ arXiv 2601.14888
 pip install openpyxl requests pymupdf
 ```
 
-### 2. 配置飞书机器人
+### 2. 配置 LLM
+
+中文总结通过 OpenAI-compatible API 生成。运行前设置：
+
+```powershell
+$env:LLM_API_BASE = "https://api.openai.com/v1"
+$env:LLM_API_KEY = "你的 LLM API Key"
+$env:LLM_MODEL = "gpt-4o-mini"
+```
+
+也可以使用兼容 OpenAI API 的其他服务。不要把密钥写进脚本、Skill、OpenClaw 配置示例或 Git 仓库。
+
+### 3. 配置飞书机器人（仅在明确需要发送时）
 
 复制 `feishu_config.example.json` 为 `feishu_config.json`，填入你的飞书应用凭据：
 
@@ -140,25 +154,27 @@ pip install openpyxl requests pymupdf
 
 也可以不写文件，直接使用环境变量 `FEISHU_APP_ID` / `FEISHU_APP_SECRET` / `FEISHU_USER_ID`。
 
-### 3. 手动跑一次看效果
+### 4. 手动跑一次看效果
 
 ```bash
-# 论文日报（预览，不发送）
-python send_feishu.py --dry-run
+# 抓取论文和新闻，生成总结并进行质量检查，不发送
+python daily_runner.py --date 2026-09-01 --hours 24 --no-send
 
-# 新闻日报（预览，不发送）
-python send_news_feishu.py --dry-run
+# 使用本地现有数据检查，不重新抓取
+python daily_runner.py --skip-fetch --no-send
 ```
+
+统一入口还支持 `--papers-only`、`--news-only` 和 `--dry-run`。真实发送必须显式使用 `--send`，且质量检查通过；不要绕过入口直接调用发送脚本。
 
 ---
 
 ## 🤖 每天 9:00 自动推送
 
-详细流水线与三种自动化方式见 [AUTOMATION.md](AUTOMATION.md)：
+详细流水线与自动化方式见 [AUTOMATION.md](AUTOMATION.md)。项目已提供：
 
-- **方式 A（推荐）**：Codex 定时任务
-- **方式 B**：Windows 任务计划程序
-- **方式 C**：GitHub Actions
+- `openclaw/daily-job.example.yaml`：OpenClaw 定时任务示例
+- `run_daily.ps1`：Windows 任务计划程序入口
+- `C:\Users\ysshen\.codex\skills\hermes-arxiv-daily`：交互式 Agent Skill
 
 > 提示：Codex 定时任务与 Windows 任务计划都依赖本机在计划时间处于运行状态；GitHub Actions 则托管在云端，与本机是否开机无关。
 
@@ -168,17 +184,26 @@ python send_news_feishu.py --dry-run
 
 ```
 lookAI/
+├── daily_runner.py          # 统一编排入口，默认不发送
+├── quality_review.py        # 论文、新闻和总结质量门禁
 ├── monitor.py               # 抓取/查重/下载 arXiv 论文，写 Excel
 ├── fill_llm.py              # 把 LLM 生成的中文总结/单位回填到 Excel
-├── send_feishu.py           # 生成并发送「论文日报」到飞书
+├── send_feishu.py           # 论文日报发送实现，由统一入口按需调用
 ├── news_monitor.py          # 抓取/去重 AI 新闻，输出 news_items.json
-├── send_news_feishu.py      # 生成并发送「新闻日报」到飞书
+├── send_news_feishu.py      # 新闻日报发送实现，由统一入口按需调用
 ├── search_keywords.txt      # 论文监控关键词
 ├── news_sources.txt         # 新闻 RSS 源
 ├── feishu_config.example.json  # 飞书配置模板
 ├── viewer/                  # 可选的网页阅读器
 └── images/                  # 文档配图
 ```
+
+## 运行边界
+
+- LLM 请求失败、总结缺失、URL 无效、占位文本、历史记录不完整或质量门禁失败时，统一入口会阻止发送。
+- `quality_review.json` 保存最近一次检查结果，可用于排查日报为什么没有发送。
+- 历史 Excel 中未完成的总结也可能阻断整日报告；需要先补全数据，再重新运行质量检查。
+- 之前在聊天或日志中暴露过的飞书 App Secret 应立即在飞书开放平台轮换或重置，新的凭据只放在本地忽略配置或环境变量中。
 
 ---
 

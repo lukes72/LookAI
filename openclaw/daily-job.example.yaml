@@ -1,0 +1,11 @@
+# Example only. OpenClaw versions may use different field names; adapt this
+# file to the scheduler schema used by the installed OpenClaw runtime.
+name: hermes-arxiv-daily
+schedule: "0 9 *"
+timezone: "Asia/Shanghai"
+working_directory: "C:\\Users\\ysshen\\Desktop\\hermes-arxiv-agent"
+command: "python daily_runner.py --date {{date}} --hours 24 --no-send"
+
+# Real delivery is intentionally not enabled in this example. If you enable
+# it in your own scheduler, require an explicit review and use:
+# python daily_runner.py --date {{date}} --hours 24 --send
